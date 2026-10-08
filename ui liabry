@@ -1,5 +1,5 @@
 -- ============================================================
--- LINORIA LIBRARY (standalone, ready to host)
+-- LINORIA LIBRARY — with real-cursor mouse logic
 -- ============================================================
 
 local InputService = game:GetService('UserInputService');
@@ -3158,8 +3158,15 @@ function Library:CreateWindow(...)
     local Toggled = false;
     local Fading = false;
 
+    -- ============ CURSOR FIX START ============
+    -- Real cursor stays visible (no green triangle).
+    -- On open: force MouseIconEnabled = true.
+    -- On close: hide cursor + lock to center for camera control.
+
     function Library:Toggle()
-        if Fading then return; end;
+        if Fading then
+            return;
+        end;
 
         local FadeTime = Config.MenuFadeTime;
         Fading = true;
@@ -3170,40 +3177,20 @@ function Library:CreateWindow(...)
             Outer.Visible = true;
 
             task.spawn(function()
-                local State = InputService.MouseIconEnabled;
-
-                local Cursor = Drawing.new('Triangle');
-                Cursor.Thickness = 1;
-                Cursor.Filled = true;
-                Cursor.Visible = true;
-
-                local CursorOutline = Drawing.new('Triangle');
-                CursorOutline.Thickness = 1;
-                CursorOutline.Filled = false;
-                CursorOutline.Color = Color3.new(0, 0, 0);
-                CursorOutline.Visible = true;
-
+                -- Keep real cursor visible while menu is open
                 while Toggled and ScreenGui.Parent do
-                    InputService.MouseIconEnabled = false;
-                    local mPos = InputService:GetMouseLocation();
-                    Cursor.Color = Library.AccentColor;
-                    Cursor.PointA = Vector2.new(mPos.X, mPos.Y);
-                    Cursor.PointB = Vector2.new(mPos.X + 16, mPos.Y + 6);
-                    Cursor.PointC = Vector2.new(mPos.X + 6, mPos.Y + 16);
-                    CursorOutline.PointA = Cursor.PointA;
-                    CursorOutline.PointB = Cursor.PointB;
-                    CursorOutline.PointC = Cursor.PointC;
+                    InputService.MouseIconEnabled = true
                     RenderStepped:Wait();
-                end;
-
-                InputService.MouseIconEnabled = State;
-                Cursor:Remove();
-                CursorOutline:Remove();
+                end
+                -- Menu just closed: hide cursor + lock to center
+                InputService.MouseIconEnabled = false
+                InputService.MouseBehavior = Enum.MouseBehavior.LockCenter
             end);
         end;
 
         for _, Desc in next, Outer:GetDescendants() do
             local Properties = {};
+
             if Desc:IsA('ImageLabel') then
                 table.insert(Properties, 'ImageTransparency');
                 table.insert(Properties, 'BackgroundTransparency');
@@ -3216,6 +3203,7 @@ function Library:CreateWindow(...)
             end;
 
             local Cache = TransparencyCache[Desc];
+
             if (not Cache) then
                 Cache = {};
                 TransparencyCache[Desc] = Cache;
@@ -3225,15 +3213,22 @@ function Library:CreateWindow(...)
                 if not Cache[Prop] then
                     Cache[Prop] = Desc[Prop];
                 end;
-                if Cache[Prop] == 1 then continue; end;
+
+                if Cache[Prop] == 1 then
+                    continue;
+                end;
+
                 TweenService:Create(Desc, TweenInfo.new(FadeTime, Enum.EasingStyle.Linear), { [Prop] = Toggled and Cache[Prop] or 1 }):Play();
             end;
         end;
 
         task.wait(FadeTime);
+
         Outer.Visible = Toggled;
+
         Fading = false;
     end
+    -- ============ CURSOR FIX END ============
 
     Library:GiveSignal(InputService.InputBegan:Connect(function(Input, Processed)
         if type(Library.ToggleKeybind) == 'table' and Library.ToggleKeybind.Type == 'KeyPicker' then
